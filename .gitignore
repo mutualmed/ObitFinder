@@ -1,0 +1,10 @@
+.streamlit/
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+*.pyc
+__pycache__/
+.env
+.DS_Store
+
