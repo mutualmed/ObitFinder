@@ -114,8 +114,10 @@ export interface DashboardStats {
 }
 
 export interface Filters {
-  search: string
-  cpf: string
+  contactName: string
+  contactCpf: string
+  caseName: string
+  caseCpf: string
   cidade: string
   estado: string
   dateFrom: string

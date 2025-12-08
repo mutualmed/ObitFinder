@@ -22,8 +22,10 @@ export function Pipeline() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   const [filters, setFilters] = useState<Filters>({
-    search: '',
-    cpf: '',
+    contactName: '',
+    contactCpf: '',
+    caseName: '',
+    caseCpf: '',
     cidade: '',
     estado: '',
     dateFrom: '',
@@ -33,11 +35,14 @@ export function Pipeline() {
 
   const [estados, setEstados] = useState<string[]>([])
   const [cidades, setCidades] = useState<string[]>([])
+  
+  // Filter out 'New' from displayed stages
+  const VISIBLE_STAGES = PIPELINE_STAGES.filter(stage => stage !== 'New')
 
   // Initialize loaded counts
   useEffect(() => {
     const initial: Record<string, number> = {}
-    PIPELINE_STAGES.forEach(stage => {
+    VISIBLE_STAGES.forEach(stage => {
       initial[stage] = CARDS_PER_LOAD
     })
     setLoadedByStage(initial)
@@ -52,33 +57,43 @@ export function Pipeline() {
         .select('estado')
         .not('estado', 'is', null)
 
-      const uniqueEstados = [...new Set(estadoData?.map(e => e.estado).filter(Boolean))]
+      const uniqueEstados = Array.from(new Set(estadoData?.map((e: any) => e.estado).filter(Boolean)))
       setEstados(uniqueEstados.sort() as string[])
     }
     fetchFilterOptions()
   }, [])
-
+  
   // Fetch cards for each stage
   const fetchStageCards = useCallback(async (stage: PipelineStage, limit: number) => {
     setLoadingStages(prev => ({ ...prev, [stage]: true }))
 
     try {
+      // Check if we have any case-related filters
+      const hasCaseFilters = filters.caseName || filters.caseCpf || filters.cidade || filters.estado || filters.dateFrom || filters.dateTo
+      const caseModifier = hasCaseFilters ? '!inner' : ''
+
       let query = supabase
         .from('relacionamentos')
         .select(`
           id, tipo_parentesco, caso_id,
           contatos!inner(id, nome, cpf, telefone_1, telefone_2, telefone_3, telefone_4, status, notes),
-          casos(id, nome, cpf, cidade, estado, data_obito)
+          casos${caseModifier}(id, nome, cpf, cidade, estado, data_obito)
         `)
         .eq('contatos.status', stage)
         .limit(limit)
 
       // Apply filters
-      if (filters.search) {
-        query = query.or(`contatos.nome.ilike.%${filters.search}%,casos.nome.ilike.%${filters.search}%`)
+      if (filters.contactName) {
+        query = query.ilike('contatos.nome', `%${filters.contactName}%`)
       }
-      if (filters.cpf) {
-        query = query.or(`contatos.cpf.ilike.%${filters.cpf}%,casos.cpf.ilike.%${filters.cpf}%`)
+      if (filters.contactCpf) {
+        query = query.ilike('contatos.cpf', `%${filters.contactCpf}%`)
+      }
+      if (filters.caseName) {
+        query = query.ilike('casos.nome', `%${filters.caseName}%`)
+      }
+      if (filters.caseCpf) {
+        query = query.ilike('casos.cpf', `%${filters.caseCpf}%`)
       }
       if (filters.cidade) {
         query = query.ilike('casos.cidade', `%${filters.cidade}%`)
@@ -100,9 +115,9 @@ export function Pipeline() {
       const cards: ContactCardType[] = []
       const seenIds = new Set<string>()
 
-      for (const rel of data || []) {
-        const contato = rel.contatos as any
-        const caso = rel.casos as any
+      for (const rel of (data as any[]) || []) {
+        const contato = rel.contatos
+        const caso = rel.casos
 
         if (!contato || seenIds.has(contato.id)) continue
         seenIds.add(contato.id)
@@ -147,7 +162,7 @@ export function Pipeline() {
 
   // Fetch all stages on mount and when filters change
   useEffect(() => {
-    PIPELINE_STAGES.forEach(stage => {
+    VISIBLE_STAGES.forEach(stage => {
       fetchStageCards(stage, loadedByStage[stage] || CARDS_PER_LOAD)
     })
   }, [filters, refreshKey])
@@ -191,8 +206,8 @@ export function Pipeline() {
       </div>
 
       {/* Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        {PIPELINE_STAGES.map((stage) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {VISIBLE_STAGES.map((stage) => {
           const config = STAGE_CONFIG[stage]
           const cards = cardsByStage[stage] || []
           const totalCount = countsByStage[stage] || 0

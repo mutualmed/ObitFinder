@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dashboard } from '@/components/dashboard'
 import { Pipeline } from '@/components/pipeline'
-import { LayoutDashboard, Kanban, Settings, Users } from 'lucide-react'
+import { Leads } from '@/components/leads'
+import { LayoutDashboard, Kanban, Settings, Users, ListFilter } from 'lucide-react'
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('pipeline')
@@ -37,6 +38,10 @@ export default function Home() {
                   <Kanban className="h-4 w-4" />
                   Pipeline
                 </TabsTrigger>
+                <TabsTrigger value="leads" className="flex items-center gap-2">
+                  <ListFilter className="h-4 w-4" />
+                  Leads
+                </TabsTrigger>
               </TabsList>
             </Tabs>
 
@@ -61,6 +66,10 @@ export default function Home() {
                 <Kanban className="h-4 w-4" />
                 Pipeline
               </TabsTrigger>
+              <TabsTrigger value="leads" className="flex-1 flex items-center justify-center gap-2">
+                <ListFilter className="h-4 w-4" />
+                Leads
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -74,6 +83,9 @@ export default function Home() {
           </TabsContent>
           <TabsContent value="pipeline" className="mt-0">
             <Pipeline />
+          </TabsContent>
+          <TabsContent value="leads" className="mt-0">
+            <Leads />
           </TabsContent>
         </Tabs>
       </main>

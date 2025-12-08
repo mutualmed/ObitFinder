@@ -25,8 +25,10 @@ export function FiltersPanel({ filters, onFiltersChange, estados, cidades }: Fil
 
   const clearFilters = () => {
     onFiltersChange({
-      search: '',
-      cpf: '',
+      contactName: '',
+      contactCpf: '',
+      caseName: '',
+      caseCpf: '',
       cidade: '',
       estado: '',
       dateFrom: '',
@@ -68,109 +70,145 @@ export function FiltersPanel({ filters, onFiltersChange, estados, cidades }: Fil
         </div>
 
         {isExpanded && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-            {/* Search by Name */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-600">Nome</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Buscar por nome..."
-                  value={filters.search}
-                  onChange={(e) => updateFilter('search', e.target.value)}
-                  className="pl-9"
-                />
+          <div className="space-y-6">
+            {/* Seção Parente */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 mb-3 border-b pb-1">Parente</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Contact Name */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-600">Nome do Parente</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Buscar por nome..."
+                      value={filters.contactName}
+                      onChange={(e) => updateFilter('contactName', e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+
+                {/* Contact CPF */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-600">CPF do Parente</label>
+                  <Input
+                    placeholder="000.000.000-00"
+                    value={filters.contactCpf}
+                    onChange={(e) => updateFilter('contactCpf', e.target.value)}
+                  />
+                </div>
+
+                {/* Status Filter */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-600">Status</label>
+                  <Select 
+                    value={filters.status || "ALL"} 
+                    onValueChange={(value) => updateFilter('status', value === "ALL" ? "" : value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Todos os status</SelectItem>
+                      {PIPELINE_STAGES.map((stage) => (
+                        <SelectItem key={stage} value={stage}>
+                          {stage}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
-            {/* CPF Filter */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-600">CPF</label>
-              <Input
-                placeholder="000.000.000-00"
-                value={filters.cpf}
-                onChange={(e) => updateFilter('cpf', e.target.value)}
-              />
-            </div>
+            {/* Seção Falecido */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 mb-3 border-b pb-1">Falecido</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                {/* Case Name */}
+                <div className="space-y-2 xl:col-span-2">
+                  <label className="text-sm font-medium text-gray-600">Nome do Falecido</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Buscar por nome..."
+                      value={filters.caseName}
+                      onChange={(e) => updateFilter('caseName', e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
 
-            {/* Estado Filter */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-600">Estado</label>
-              <Select 
-                value={filters.estado || "ALL"} 
-                onValueChange={(value) => updateFilter('estado', value === "ALL" ? "" : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos os estados" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Todos os estados</SelectItem>
-                  {estados.map((estado) => (
-                    <SelectItem key={estado} value={estado}>
-                      {estado}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                {/* Case CPF */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-600">CPF do Falecido</label>
+                  <Input
+                    placeholder="000.000.000-00"
+                    value={filters.caseCpf}
+                    onChange={(e) => updateFilter('caseCpf', e.target.value)}
+                  />
+                </div>
 
-            {/* Cidade Filter */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-600">Cidade</label>
-              <Input
-                placeholder="Buscar cidade..."
-                value={filters.cidade}
-                onChange={(e) => updateFilter('cidade', e.target.value)}
-              />
-            </div>
+                {/* Estado Filter */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-600">Estado</label>
+                  <Select 
+                    value={filters.estado || "ALL"} 
+                    onValueChange={(value) => updateFilter('estado', value === "ALL" ? "" : value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os estados" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Todos os estados</SelectItem>
+                      {estados.map((estado) => (
+                        <SelectItem key={estado} value={estado}>
+                          {estado}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Date From */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-600">Data Óbito (De)</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="date"
-                  value={filters.dateFrom}
-                  onChange={(e) => updateFilter('dateFrom', e.target.value)}
-                  className="pl-9"
-                />
+                {/* Cidade Filter */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-600">Cidade</label>
+                  <Input
+                    placeholder="Buscar cidade..."
+                    value={filters.cidade}
+                    onChange={(e) => updateFilter('cidade', e.target.value)}
+                  />
+                </div>
+
+                {/* Date From */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-600">Data Óbito (De)</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="date"
+                      value={filters.dateFrom}
+                      onChange={(e) => updateFilter('dateFrom', e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+
+                {/* Date To */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-600">Data Óbito (Até)</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(e) => updateFilter('dateTo', e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-
-            {/* Date To */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-600">Data Óbito (Até)</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="date"
-                  value={filters.dateTo}
-                  onChange={(e) => updateFilter('dateTo', e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            {/* Status Filter */}
-            <div className="space-y-2 lg:col-span-2 xl:col-span-1">
-              <label className="text-sm font-medium text-gray-600">Status</label>
-              <Select 
-                value={filters.status || "ALL"} 
-                onValueChange={(value) => updateFilter('status', value === "ALL" ? "" : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos os status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Todos os status</SelectItem>
-                  {PIPELINE_STAGES.map((stage) => (
-                    <SelectItem key={stage} value={stage}>
-                      {stage}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
         )}
