@@ -21,6 +21,25 @@ A modern, interactive Pipeline CRM for managing family outreach built with Next.
 - **Supabase** - Backend (PostgreSQL + Storage)
 - **Lucide** - Icons
 
+## Authentication
+
+The system uses Supabase Auth with role-based access control.
+
+### Test Account
+
+| Email | Password | Role |
+|-------|----------|------|
+| `admin@obitfinder.com` | `Admin@123` | Admin |
+
+### User Roles
+
+| Role | Description |
+|------|-------------|
+| **Admin** | Full system access |
+| **Empresa** | Company-level access |
+| **Supervisor** | Team supervision access |
+| **Operador** | Basic operator access |
+
 ## Getting Started
 
 ### 1. Install Dependencies

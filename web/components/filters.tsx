@@ -20,8 +20,7 @@ export function FiltersPanel({ filters, onFiltersChange, estados, cidades }: Fil
   const [isExpanded, setIsExpanded] = useState(true)
 
   const updateFilter = (key: keyof Filters, value: string) => {
-    onFiltersChange({ ...filters, [key]: value })
-  }
+    onFiltersChange({ ...filters, [key]: value })  }
 
   const clearFilters = () => {
     onFiltersChange({

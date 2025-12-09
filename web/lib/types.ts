@@ -1,23 +1,11 @@
-export interface Database {
-  public: {
-    Tables: {
-      casos: {
-        Row: Caso
-        Insert: Partial<Caso>
-        Update: Partial<Caso>
-      }
-      contatos: {
-        Row: Contato
-        Insert: Partial<Contato>
-        Update: Partial<Contato>
-      }
-      relacionamentos: {
-        Row: Relacionamento
-        Insert: Partial<Relacionamento>
-        Update: Partial<Relacionamento>
-      }
-    }
-  }
+export type UserRole = 'Admin' | 'Empresa' | 'Supervisor' | 'Operador'
+
+export interface Profile {
+  id: string
+  role: UserRole
+  full_name: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface Caso {
@@ -68,6 +56,80 @@ export interface Relacionamento {
   caso_id: string | null
   contato_id: string | null
   tipo_parentesco: string | null
+}
+
+// Campaign types
+export type CampaignStatus = 'active' | 'paused' | 'completed'
+
+export const CAMPAIGN_PLATFORMS = ['Whatsapp', 'Meta', 'Calls', 'Emails'] as const
+export type CampaignPlatform = typeof CAMPAIGN_PLATFORMS[number] | string
+
+export interface Campaign {
+  id: string
+  name: string
+  description: string | null
+  status: CampaignStatus
+  platforms: string[]
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CampaignLead {
+  id: string
+  campaign_id: string
+  contato_id: string
+  added_at: string
+}
+
+export interface CampaignWithLeads extends Campaign {
+  leads_count: number
+}
+
+export interface CampaignFilters {
+  name: string
+  status: CampaignStatus | ''
+  platform: string
+  dateFrom: string
+  dateTo: string
+}
+
+// Database interface (must be after all table types are defined)
+export interface Database {
+  public: {
+    Tables: {
+      casos: {
+        Row: Caso
+        Insert: Partial<Caso>
+        Update: Partial<Caso>
+      }
+      contatos: {
+        Row: Contato
+        Insert: Partial<Contato>
+        Update: Partial<Contato>
+      }
+      relacionamentos: {
+        Row: Relacionamento
+        Insert: Partial<Relacionamento>
+        Update: Partial<Relacionamento>
+      }
+      profiles: {
+        Row: Profile
+        Insert: Partial<Profile>
+        Update: Partial<Profile>
+      }
+      campaigns: {
+        Row: Campaign
+        Insert: Partial<Campaign>
+        Update: Partial<Campaign>
+      }
+      campaign_leads: {
+        Row: CampaignLead
+        Insert: Partial<CampaignLead>
+        Update: Partial<CampaignLead>
+      }
+    }
+  }
 }
 
 // Extended types for UI
@@ -124,3 +186,4 @@ export interface Filters {
   dateTo: string
   status: string
 }
+
