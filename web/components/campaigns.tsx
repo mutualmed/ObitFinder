@@ -15,9 +15,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { supabase } from '@/lib/supabase'
+import { supabase, PIPELINE_STAGES } from '@/lib/supabase'
 import { useAuth } from '@/components/auth-provider'
-import type { Campaign, CampaignFilters, CampaignStatus, ContactCard as ContactCardType } from '@/lib/types'
+import type { Campaign, CampaignFilters, CampaignStatus, ContactCard as ContactCardType, Filters } from '@/lib/types'
 import { CAMPAIGN_PLATFORMS } from '@/lib/types'
 import { 
   Plus, 
@@ -33,8 +33,13 @@ import {
   Phone,
   Mail,
   Globe,
-  Trash2
+  Trash2,
+  ChevronDown,
+  CheckSquare,
+  Square
 } from 'lucide-react'
+
+const LEADS_PER_PAGE = 50
 
 const STATUS_CONFIG: Record<CampaignStatus, { label: string; color: string; bgColor: string }> = {
   'active': { label: 'Ativa', color: 'text-green-700', bgColor: 'bg-green-100' },
@@ -76,8 +81,25 @@ export function Campaigns() {
   
   // Lead selection
   const [availableLeads, setAvailableLeads] = useState<ContactCardType[]>([])
-  const [leadSearch, setLeadSearch] = useState('')
   const [loadingLeads, setLoadingLeads] = useState(false)
+  const [leadsPage, setLeadsPage] = useState(1)
+  const [hasMoreLeads, setHasMoreLeads] = useState(true)
+  const [totalLeadsCount, setTotalLeadsCount] = useState(0)
+  const [estados, setEstados] = useState<string[]>([])
+  
+  // Lead filters (for modal)
+  const [leadFilters, setLeadFilters] = useState<Filters>({
+    contactName: '',
+    contactCpf: '',
+    caseName: '',
+    caseCpf: '',
+    cidade: '',
+    estado: '',
+    dateFrom: '',
+    dateTo: '',
+    status: ''
+  })
+  const [isLeadFiltersExpanded, setIsLeadFiltersExpanded] = useState(true)
   
   // Filters
   const [filters, setFilters] = useState<CampaignFilters>({
@@ -138,20 +160,68 @@ export function Campaigns() {
     fetchCampaigns()
   }, [fetchCampaigns, refreshKey])
 
-  // Fetch leads for selection
-  const fetchAvailableLeads = async (search: string) => {
+  // Fetch estados for filter dropdown
+  useEffect(() => {
+    const fetchEstados = async () => {
+      const { data } = await supabase
+        .from('casos')
+        .select('estado')
+        .not('estado', 'is', null)
+      
+      const uniqueEstados = Array.from(new Set(data?.map((e: any) => e.estado).filter(Boolean)))
+      setEstados(uniqueEstados.sort() as string[])
+    }
+    fetchEstados()
+  }, [])
+
+  // Fetch leads for selection with filters and pagination
+  const fetchAvailableLeads = useCallback(async (page: number = 1, append: boolean = false) => {
     setLoadingLeads(true)
     try {
+      const limit = LEADS_PER_PAGE
+      const offset = (page - 1) * limit
+      
+      // Check if we have any case-related filters
+      const hasCaseFilters = leadFilters.caseName || leadFilters.caseCpf || leadFilters.cidade || leadFilters.estado || leadFilters.dateFrom || leadFilters.dateTo
+      const caseModifier = hasCaseFilters ? '!inner' : ''
+
       let query = supabase
         .from('relacionamentos')
         .select(`
           contatos!inner(id, nome, cpf, telefone_1, status),
-          casos(nome, cidade, estado)
+          casos${caseModifier}(id, nome, cpf, cidade, estado, data_obito)
         `)
-        .limit(50)
+        .range(offset, offset + limit - 1)
 
-      if (search) {
-        query = query.ilike('contatos.nome', `%${search}%`)
+      // Apply contact filters
+      if (leadFilters.contactName) {
+        query = query.ilike('contatos.nome', `%${leadFilters.contactName}%`)
+      }
+      if (leadFilters.contactCpf) {
+        query = query.ilike('contatos.cpf', `%${leadFilters.contactCpf}%`)
+      }
+      if (leadFilters.status && leadFilters.status !== 'ALL') {
+        query = query.eq('contatos.status', leadFilters.status)
+      }
+      
+      // Apply case filters
+      if (leadFilters.caseName) {
+        query = query.ilike('casos.nome', `%${leadFilters.caseName}%`)
+      }
+      if (leadFilters.caseCpf) {
+        query = query.ilike('casos.cpf', `%${leadFilters.caseCpf}%`)
+      }
+      if (leadFilters.cidade) {
+        query = query.ilike('casos.cidade', `%${leadFilters.cidade}%`)
+      }
+      if (leadFilters.estado) {
+        query = query.eq('casos.estado', leadFilters.estado)
+      }
+      if (leadFilters.dateFrom) {
+        query = query.gte('casos.data_obito', leadFilters.dateFrom)
+      }
+      if (leadFilters.dateTo) {
+        query = query.lte('casos.data_obito', leadFilters.dateTo)
       }
 
       const { data, error } = await query
@@ -159,7 +229,7 @@ export function Campaigns() {
       if (error) throw error
 
       const leads: ContactCardType[] = []
-      const seenIds = new Set<string>()
+      const seenIds = new Set<string>(append ? availableLeads.map(l => l.contato_id) : [])
 
       for (const rel of (data as any[]) || []) {
         const contato = rel.contatos
@@ -175,23 +245,82 @@ export function Campaigns() {
           all_phones: [contato.telefone_1].filter(Boolean),
           status: contato.status || 'New',
           notes: null,
-          caso_id: null,
+          caso_id: caso?.id || null,
           caso_nome: caso?.nome || '',
-          caso_cpf: null,
+          caso_cpf: caso?.cpf || null,
           caso_cidade: caso?.cidade,
           caso_estado: caso?.estado,
-          caso_data_obito: null,
+          caso_data_obito: caso?.data_obito?.split('T')[0] || null,
           tipo_parentesco: null,
         })
       }
 
-      setAvailableLeads(leads)
+      if (append) {
+        setAvailableLeads(prev => [...prev, ...leads])
+      } else {
+        setAvailableLeads(leads)
+      }
+      
+      setHasMoreLeads(leads.length >= limit)
+      setTotalLeadsCount(prev => append ? prev : (leads.length < limit ? leads.length : leads.length + 1))
     } catch (err) {
       console.error('Error fetching leads:', err)
     } finally {
       setLoadingLeads(false)
     }
+  }, [leadFilters, availableLeads])
+
+  // Reset and fetch leads when filters change
+  useEffect(() => {
+    if (isModalOpen) {
+      setLeadsPage(1)
+      fetchAvailableLeads(1, false)
+    }
+  }, [leadFilters, isModalOpen])
+
+  // Load more leads
+  const loadMoreLeads = () => {
+    const nextPage = leadsPage + 1
+    setLeadsPage(nextPage)
+    fetchAvailableLeads(nextPage, true)
   }
+
+  // Select/Deselect all shown leads
+  const selectAllShown = () => {
+    const shownIds = availableLeads.map(l => l.contato_id)
+    setFormData(prev => ({
+      ...prev,
+      selectedLeads: Array.from(new Set([...prev.selectedLeads, ...shownIds]))
+    }))
+  }
+
+  const deselectAllShown = () => {
+    const shownIds = new Set(availableLeads.map(l => l.contato_id))
+    setFormData(prev => ({
+      ...prev,
+      selectedLeads: prev.selectedLeads.filter(id => !shownIds.has(id))
+    }))
+  }
+
+  const clearLeadSelection = () => {
+    setFormData(prev => ({ ...prev, selectedLeads: [] }))
+  }
+
+  const clearLeadFilters = () => {
+    setLeadFilters({
+      contactName: '',
+      contactCpf: '',
+      caseName: '',
+      caseCpf: '',
+      cidade: '',
+      estado: '',
+      dateFrom: '',
+      dateTo: '',
+      status: ''
+    })
+  }
+
+  const hasActiveLeadFilters = Object.values(leadFilters).some(v => v !== '')
 
   // Open modal for new campaign
   const handleAddCampaign = () => {
@@ -204,8 +333,9 @@ export function Campaigns() {
       selectedLeads: [],
     })
     setCustomPlatform('')
+    clearLeadFilters()
+    setLeadsPage(1)
     setIsModalOpen(true)
-    fetchAvailableLeads('')
   }
 
   // Open modal for editing
@@ -226,8 +356,9 @@ export function Campaigns() {
       selectedLeads: campaignLeads?.map((l: any) => l.contato_id) || [],
     })
     setCustomPlatform('')
+    clearLeadFilters()
+    setLeadsPage(1)
     setIsModalOpen(true)
-    fetchAvailableLeads('')
   }
 
   // Save campaign
@@ -556,7 +687,7 @@ export function Campaigns() {
 
       {/* Add/Edit Campaign Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingCampaign ? 'Editar Campanha' : 'Nova Campanha'}
@@ -653,50 +784,236 @@ export function Campaigns() {
             </div>
 
             {/* Lead Selection */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Leads ({formData.selectedLeads.length} selecionados)</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Buscar leads por nome..."
-                  value={leadSearch}
-                  onChange={(e) => {
-                    setLeadSearch(e.target.value)
-                    fetchAvailableLeads(e.target.value)
-                  }}
-                  className="pl-9"
-                />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">
+                  Leads ({formData.selectedLeads.length} selecionados de {availableLeads.length} carregados)
+                </label>
+                {formData.selectedLeads.length > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearLeadSelection} className="text-xs h-7">
+                    <X className="h-3 w-3 mr-1" />
+                    Limpar seleção
+                  </Button>
+                )}
               </div>
-              <div className="border rounded-md max-h-48 overflow-y-auto">
-                {loadingLeads ? (
-                  <div className="flex justify-center py-4">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
-                  </div>
-                ) : availableLeads.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">Nenhum lead encontrado</p>
-                ) : (
-                  availableLeads.map((lead) => (
-                    <div
-                      key={lead.contato_id}
-                      className={`flex items-center justify-between p-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 ${
-                        formData.selectedLeads.includes(lead.contato_id) ? 'bg-blue-50' : ''
-                      }`}
-                      onClick={() => toggleLead(lead.contato_id)}
-                    >
-                      <div>
-                        <p className="text-sm font-medium">{lead.contato_nome}</p>
-                        <p className="text-xs text-gray-500">
-                          {lead.caso_cidade && lead.caso_estado && `${lead.caso_cidade}, ${lead.caso_estado}`}
-                        </p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={formData.selectedLeads.includes(lead.contato_id)}
-                        onChange={() => {}}
-                        className="h-4 w-4 text-blue-600 rounded"
-                      />
+
+              {/* Lead Filters */}
+              <Card className="border-dashed">
+                <CardContent className="pt-3 pb-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">Filtrar Leads</span>
+                      {hasActiveLeadFilters && (
+                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">Ativos</span>
+                      )}
                     </div>
-                  ))
+                    <div className="flex items-center gap-1">
+                      {hasActiveLeadFilters && (
+                        <Button variant="ghost" size="sm" onClick={clearLeadFilters} className="text-xs h-7">
+                          <X className="h-3 w-3 mr-1" />
+                          Limpar
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => setIsLeadFiltersExpanded(!isLeadFiltersExpanded)} className="text-xs h-7">
+                        {isLeadFiltersExpanded ? 'Ocultar' : 'Mostrar'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {isLeadFiltersExpanded && (
+                    <div className="space-y-4">
+                      {/* Seção Parente */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-900 mb-2 border-b pb-1">Parente</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-xs text-gray-600">Nome do Parente</label>
+                            <Input
+                              placeholder="Nome..."
+                              value={leadFilters.contactName}
+                              onChange={(e) => setLeadFilters(prev => ({ ...prev, contactName: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-gray-600">CPF do Parente</label>
+                            <Input
+                              placeholder="CPF..."
+                              value={leadFilters.contactCpf}
+                              onChange={(e) => setLeadFilters(prev => ({ ...prev, contactCpf: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-gray-600">Status</label>
+                            <Select 
+                              value={leadFilters.status || "ALL"} 
+                              onValueChange={(value) => setLeadFilters(prev => ({ ...prev, status: value === "ALL" ? "" : value }))}
+                            >
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Todos" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ALL">Todos</SelectItem>
+                                {PIPELINE_STAGES.map((stage) => (
+                                  <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Seção Falecido */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-900 mb-2 border-b pb-1">Falecido</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-xs text-gray-600">Nome do Falecido</label>
+                            <Input
+                              placeholder="Nome..."
+                              value={leadFilters.caseName}
+                              onChange={(e) => setLeadFilters(prev => ({ ...prev, caseName: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-gray-600">CPF do Falecido</label>
+                            <Input
+                              placeholder="CPF..."
+                              value={leadFilters.caseCpf}
+                              onChange={(e) => setLeadFilters(prev => ({ ...prev, caseCpf: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-gray-600">Estado</label>
+                            <Select 
+                              value={leadFilters.estado || "ALL"} 
+                              onValueChange={(value) => setLeadFilters(prev => ({ ...prev, estado: value === "ALL" ? "" : value }))}
+                            >
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Todos" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ALL">Todos os estados</SelectItem>
+                                {estados.map((estado) => (
+                                  <SelectItem key={estado} value={estado}>{estado}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-gray-600">Cidade</label>
+                            <Input
+                              placeholder="Cidade..."
+                              value={leadFilters.cidade}
+                              onChange={(e) => setLeadFilters(prev => ({ ...prev, cidade: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-gray-600">Óbito (De)</label>
+                            <Input
+                              type="date"
+                              value={leadFilters.dateFrom}
+                              onChange={(e) => setLeadFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-gray-600">Óbito (Até)</label>
+                            <Input
+                              type="date"
+                              value={leadFilters.dateTo}
+                              onChange={(e) => setLeadFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Select All / Deselect Actions */}
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={selectAllShown} className="text-xs h-7">
+                  <CheckSquare className="h-3 w-3 mr-1" />
+                  Selecionar todos ({availableLeads.length})
+                </Button>
+                <Button variant="outline" size="sm" onClick={deselectAllShown} className="text-xs h-7">
+                  <Square className="h-3 w-3 mr-1" />
+                  Desmarcar todos
+                </Button>
+              </div>
+
+              {/* Lead List */}
+              <div className="border rounded-md">
+                <div className="max-h-64 overflow-y-auto">
+                  {loadingLeads && availableLeads.length === 0 ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                    </div>
+                  ) : availableLeads.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Users className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">Nenhum lead encontrado</p>
+                      <p className="text-xs text-gray-400">Ajuste os filtros para encontrar leads</p>
+                    </div>
+                  ) : (
+                    availableLeads.map((lead) => (
+                      <div
+                        key={lead.contato_id}
+                        className={`flex items-center justify-between p-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 ${
+                          formData.selectedLeads.includes(lead.contato_id) ? 'bg-blue-50' : ''
+                        }`}
+                        onClick={() => toggleLead(lead.contato_id)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium truncate">{lead.contato_nome}</p>
+                            <Badge variant="outline" className="text-xs shrink-0">{lead.status}</Badge>
+                          </div>
+                          <p className="text-xs text-gray-500 truncate">
+                            {lead.caso_nome && <span className="font-medium">Falecido: {lead.caso_nome}</span>}
+                            {lead.caso_cidade && lead.caso_estado && ` • ${lead.caso_cidade}, ${lead.caso_estado}`}
+                            {lead.caso_data_obito && ` • ${lead.caso_data_obito}`}
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={formData.selectedLeads.includes(lead.contato_id)}
+                          onChange={() => {}}
+                          className="h-4 w-4 text-blue-600 rounded shrink-0 ml-2"
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+                
+                {/* Load More */}
+                {hasMoreLeads && availableLeads.length > 0 && (
+                  <div className="border-t p-2 bg-gray-50">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadMoreLeads}
+                      disabled={loadingLeads}
+                      className="w-full text-xs h-8"
+                    >
+                      {loadingLeads ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600" />
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4 mr-1" />
+                          Carregar mais leads
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
