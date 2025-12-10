@@ -3,8 +3,33 @@ import type { Database } from './types'
 
 export const supabase = createBrowserClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  {
+    global: {
+      fetch: (url, options = {}) => {
+        // Add 15 second timeout to all fetch requests
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 15000)
+        
+        return fetch(url, {
+          ...options,
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeoutId))
+      }
+    }
+  }
 )
+
+// Helper function to wrap Supabase queries with timeout
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number = 10000
+): Promise<T> {
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('Query timeout')), timeoutMs)
+  })
+  return Promise.race([promise, timeout])
+}
 
 // Pipeline stages
 export const PIPELINE_STAGES = ['New', 'Attempted', 'In Progress', 'Scheduled', 'Won', 'Lost'] as const
