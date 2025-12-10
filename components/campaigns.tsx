@@ -188,7 +188,7 @@ export function Campaigns() {
       let query = supabase
         .from('relacionamentos')
         .select(`
-          contatos!inner(id, nome, cpf, telefone_1, status),
+          contatos!inner(id, nome, cpf, telefone_1, status, scheduled_for),
           casos${caseModifier}(id, nome, cpf, cidade, estado, data_obito)
         `)
         .range(offset, offset + limit - 1)
@@ -252,6 +252,7 @@ export function Campaigns() {
           caso_estado: caso?.estado,
           caso_data_obito: caso?.data_obito?.split('T')[0] || null,
           tipo_parentesco: null,
+          scheduled_for: contato.scheduled_for || null,
         })
       }
 
