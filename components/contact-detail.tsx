@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { supabase, PIPELINE_STAGES, type PipelineStage } from '@/lib/supabase'
 import { formatPhone, formatCPF, formatDate } from '@/lib/utils'
-import type { ContactDetails, RelativeInfo } from '@/lib/types'
+import type { ContactDetails, RelativeInfo, Contato } from '@/lib/types'
 
 interface ContactDetailProps {
   contactId: string | null
@@ -45,11 +45,13 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
 
     try {
       // Fetch contact info
-      const { data: contact } = await supabase
+      const { data: contactData } = await supabase
         .from('contatos')
         .select('*')
         .eq('id', contactId)
         .single()
+
+      const contact = contactData as Contato | null
 
       if (!contact) {
         setLoading(false)
@@ -63,21 +65,21 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
       setPendingStatus(null)
 
       // Fetch related caso via relacionamentos
-      const { data: relData } = await supabase
-        .from('relacionamentos')
+      const { data: relData } = await (supabase
+        .from('relacionamentos') as any)
         .select('tipo_parentesco, caso_id, casos(*)')
         .eq('contato_id', contactId)
         .single()
 
-      const caso = relData?.casos as any || null
+      const caso = relData?.casos || null
       const parentesco = relData?.tipo_parentesco || null
       const casoId = relData?.caso_id
 
       // Fetch OTHER relatives of the same deceased
       let otherRelatives: RelativeInfo[] = []
       if (casoId) {
-        const { data: otherRels } = await supabase
-          .from('relacionamentos')
+        const { data: otherRels } = await (supabase
+          .from('relacionamentos') as any)
           .select('tipo_parentesco, contatos(id, nome, cpf, telefone_1, status)')
           .eq('caso_id', casoId)
           .neq('contato_id', contactId)
@@ -128,8 +130,8 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
     setSaving(true)
 
     try {
-      await supabase
-        .from('contatos')
+      await (supabase
+        .from('contatos') as any)
         .update({ scheduled_for: scheduledFor })
         .eq('id', contactId)
 
@@ -160,30 +162,30 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
         updateData.scheduled_for = null
       }
       
-      await supabase
-        .from('contatos')
+      await (supabase
+        .from('contatos') as any)
         .update(updateData)
         .eq('id', contactId)
 
       // If Won, trigger the One-Win-Close-All logic
       if (newStatus === 'Won' && details.caso?.id) {
-        const { data: allRels } = await supabase
-          .from('relacionamentos')
+        const { data: allRels } = await (supabase
+          .from('relacionamentos') as any)
           .select('contato_id')
           .eq('caso_id', details.caso.id)
           .neq('contato_id', contactId)
 
         // Close all other relatives
         for (const rel of allRels || []) {
-          const { data: otherContact } = await supabase
-            .from('contatos')
+          const { data: otherContact } = await (supabase
+            .from('contatos') as any)
             .select('status, notes')
             .eq('id', rel.contato_id)
             .single()
 
           if (otherContact && !['Won', 'Lost'].includes(otherContact.status || '')) {
-            await supabase
-              .from('contatos')
+            await (supabase
+              .from('contatos') as any)
               .update({
                 status: 'Lost',
                 notes: (otherContact.notes || '') + `\n[Auto-fechado: Outro familiar ganhou em ${new Date().toLocaleDateString('pt-BR')}]`,
@@ -208,8 +210,8 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
     setSaving(true)
 
     try {
-      await supabase
-        .from('contatos')
+      await (supabase
+        .from('contatos') as any)
         .update({ notes })
         .eq('id', contactId)
 
@@ -384,7 +386,7 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">CPF</p>
-                    <p className="font-medium">{formatCPF(contact?.cpf)}</p>
+                    <p className="font-medium">{formatCPF(contact?.cpf ?? null)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Telefones</p>
@@ -393,7 +395,7 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
                         .filter(Boolean)
                         .map((phone, i) => (
                           <p key={i} className="font-medium font-mono">
-                            {formatPhone(phone)}
+                            {formatPhone(phone ?? null)}
                           </p>
                         ))}
                       {![contact?.telefone_1, contact?.telefone_2, contact?.telefone_3, contact?.telefone_4].some(Boolean) && (
