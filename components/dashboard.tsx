@@ -24,34 +24,34 @@ export function Dashboard() {
   const fetchStats = async () => {
     try {
       // Total casos
-      const { count: casosCount } = await supabase
-        .from('casos')
+      const { count: casosCount } = await (supabase
+        .from('casos') as any)
         .select('*', { count: 'exact', head: true })
 
       // Total contatos
-      const { count: contatosCount } = await supabase
-        .from('contatos')
+      const { count: contatosCount } = await (supabase
+        .from('contatos') as any)
         .select('*', { count: 'exact', head: true })
 
       // Counts by status
       const byStatus: Record<string, number> = {}
       for (const stage of PIPELINE_STAGES) {
-        const { count } = await supabase
-          .from('contatos')
+        const { count } = await (supabase
+          .from('contatos') as any)
           .select('*', { count: 'exact', head: true })
           .eq('status', stage)
         byStatus[stage] = count || 0
       }
 
       // Top cities
-      const { data: cityData } = await supabase
-        .from('casos')
+      const { data: cityData } = await (supabase
+        .from('casos') as any)
         .select('cidade')
         .not('cidade', 'is', null)
         .limit(1000)
 
       const cityCounts: Record<string, number> = {}
-      cityData?.forEach(c => {
+      cityData?.forEach((c: any) => {
         if (c.cidade) {
           cityCounts[c.cidade] = (cityCounts[c.cidade] || 0) + 1
         }
@@ -62,14 +62,14 @@ export function Dashboard() {
         .map(([city, count]) => ({ city, count }))
 
       // Top states
-      const { data: stateData } = await supabase
-        .from('casos')
+      const { data: stateData } = await (supabase
+        .from('casos') as any)
         .select('estado')
         .not('estado', 'is', null)
         .limit(1000)
 
       const stateCounts: Record<string, number> = {}
-      stateData?.forEach(s => {
+      stateData?.forEach((s: any) => {
         if (s.estado) {
           stateCounts[s.estado] = (stateCounts[s.estado] || 0) + 1
         }
@@ -82,8 +82,8 @@ export function Dashboard() {
       // Recent activity (last 7 days)
       const weekAgo = new Date()
       weekAgo.setDate(weekAgo.getDate() - 7)
-      const { count: recentCount } = await supabase
-        .from('contatos')
+      const { count: recentCount } = await (supabase
+        .from('contatos') as any)
         .select('*', { count: 'exact', head: true })
         .gte('status_updated_at', weekAgo.toISOString())
 

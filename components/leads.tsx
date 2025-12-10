@@ -39,8 +39,8 @@ export function Leads() {
   // Fetch filter options
   useEffect(() => {
     const fetchFilterOptions = async () => {
-      const { data: estadoData } = await supabase
-        .from('casos')
+      const { data: estadoData } = await (supabase
+        .from('casos') as any)
         .select('estado')
         .not('estado', 'is', null)
 
@@ -59,11 +59,11 @@ export function Leads() {
       const hasCaseFilters = filters.caseName || filters.caseCpf || filters.cidade || filters.estado || filters.dateFrom || filters.dateTo
       const caseModifier = hasCaseFilters ? '!inner' : ''
 
-      let query = supabase
-        .from('relacionamentos')
+      let query = (supabase
+        .from('relacionamentos') as any)
         .select(`
           id, tipo_parentesco, caso_id,
-          contatos!inner(id, nome, cpf, telefone_1, telefone_2, telefone_3, telefone_4, status, notes),
+          contatos!inner(id, nome, cpf, telefone_1, telefone_2, telefone_3, telefone_4, status, notes, scheduled_for),
           casos${caseModifier}(id, nome, cpf, cidade, estado, data_obito)
         `)
         .limit(limit)
@@ -128,7 +128,8 @@ export function Leads() {
           caso_cidade: caso?.cidade,
           caso_estado: caso?.estado,
           caso_data_obito: caso?.data_obito?.split('T')[0] || null,
-          tipo_parentesco: rel.tipo_parentesco
+          tipo_parentesco: rel.tipo_parentesco,
+          scheduled_for: contato.scheduled_for || null
         })
       }
 

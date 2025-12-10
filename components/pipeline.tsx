@@ -52,8 +52,8 @@ export function Pipeline() {
   useEffect(() => {
     const fetchFilterOptions = async () => {
       // Fetch unique estados
-      const { data: estadoData } = await supabase
-        .from('casos')
+      const { data: estadoData } = await (supabase
+        .from('casos') as any)
         .select('estado')
         .not('estado', 'is', null)
 
@@ -72,8 +72,8 @@ export function Pipeline() {
       const hasCaseFilters = filters.caseName || filters.caseCpf || filters.cidade || filters.estado || filters.dateFrom || filters.dateTo
       const caseModifier = hasCaseFilters ? '!inner' : ''
 
-      let query = supabase
-        .from('relacionamentos')
+      let query = (supabase
+        .from('relacionamentos') as any)
         .select(`
           id, tipo_parentesco, caso_id,
           contatos!inner(id, nome, cpf, telefone_1, telefone_2, telefone_3, telefone_4, status, notes, scheduled_for),
@@ -147,8 +147,8 @@ export function Pipeline() {
       setCardsByStage(prev => ({ ...prev, [stage]: cards }))
 
       // Get total count for this stage
-      const { count } = await supabase
-        .from('contatos')
+      const { count } = await (supabase
+        .from('contatos') as any)
         .select('*', { count: 'exact', head: true })
         .eq('status', stage)
 
