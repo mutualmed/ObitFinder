@@ -33,9 +33,16 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data, error } = await supabase.auth.getUser()
+    if (!error) {
+      user = data.user
+    }
+  } catch (err) {
+    // Auth failed, user will be null
+    console.error('Middleware auth error:', err)
+  }
 
   // Protect all routes except /login and static assets
   if (
@@ -45,7 +52,10 @@ export async function middleware(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/_next') &&
     !request.nextUrl.pathname.includes('.')
   ) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    // Clear any stale auth cookies
+    const redirectResponse = NextResponse.redirect(new URL('/login', request.url))
+    redirectResponse.cookies.delete('sb-txeijevdnhmqeffgyjcg-auth-token')
+    return redirectResponse
   }
 
   // Redirect to home if logged in and trying to access login

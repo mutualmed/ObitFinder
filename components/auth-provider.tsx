@@ -1,9 +1,10 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react'
 import { Session, User, AuthChangeEvent } from '@supabase/supabase-js'
 import { Profile } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 type AuthContextType = {
   session: Session | null
@@ -20,8 +21,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
   
-  const supabase = createClient()
+  // Create supabase client once
+  const supabase = useMemo(() => createClient(), [])
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -44,21 +47,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setSession(session)
-      setUser(session?.user ?? null)
-      
-      if (session?.user) {
-        const profileData = await fetchProfile(session.user.id)
-        setProfile(profileData)
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Session error:', error)
+          // Clear stale state and redirect to login
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+          setIsLoading(false)
+          router.push('/login')
+          return
+        }
+        
+        setSession(session)
+        setUser(session?.user ?? null)
+        
+        if (session?.user) {
+          const profileData = await fetchProfile(session.user.id)
+          setProfile(profileData)
+        }
+      } catch (err) {
+        console.error('Error getting session:', err)
+        setSession(null)
+        setUser(null)
+        setProfile(null)
+        router.push('/login')
+      } finally {
+        setIsLoading(false)
       }
-      
-      setIsLoading(false)
     }
 
     getSession()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
+      console.log('Auth state changed:', event)
+      
+      // Handle token refresh errors
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        console.log('Token refresh failed, redirecting to login')
+        setSession(null)
+        setUser(null)
+        setProfile(null)
+        router.push('/login')
+        return
+      }
+      
+      // Handle sign out
+      if (event === 'SIGNED_OUT') {
+        setSession(null)
+        setUser(null)
+        setProfile(null)
+        router.push('/login')
+        return
+      }
+      
       setSession(session)
       setUser(session?.user ?? null)
       
@@ -75,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
+  }, [supabase, router])
 
   const signOut = async () => {
     await supabase.auth.signOut()
