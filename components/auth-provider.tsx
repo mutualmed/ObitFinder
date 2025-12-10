@@ -47,8 +47,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const getSession = async () => {
+      // Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.log('Session check timeout - redirecting to login')
+        setSession(null)
+        setUser(null)
+        setProfile(null)
+        setIsLoading(false)
+        router.push('/login')
+      }, 10000) // 10 second timeout
+      
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
+        
+        clearTimeout(timeoutId)
         
         if (error) {
           console.error('Session error:', error)
@@ -68,14 +80,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const profileData = await fetchProfile(session.user.id)
           setProfile(profileData)
         }
+        
+        setIsLoading(false)
       } catch (err) {
+        clearTimeout(timeoutId)
         console.error('Error getting session:', err)
         setSession(null)
         setUser(null)
         setProfile(null)
-        router.push('/login')
-      } finally {
         setIsLoading(false)
+        router.push('/login')
       }
     }
 
