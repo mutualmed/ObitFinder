@@ -14,6 +14,7 @@ const badgeVariants = cva(
         new: "border-blue-200 bg-blue-50 text-blue-700",
         attempted: "border-yellow-200 bg-yellow-50 text-yellow-700",
         inProgress: "border-orange-200 bg-orange-50 text-orange-700",
+        scheduled: "border-purple-200 bg-purple-50 text-purple-700",
         won: "border-green-200 bg-green-50 text-green-700",
         lost: "border-red-200 bg-red-50 text-red-700",
       },

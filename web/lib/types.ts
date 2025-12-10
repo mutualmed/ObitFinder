@@ -49,6 +49,7 @@ export interface Contato {
   notes: string | null
   status: string | null
   status_updated_at: string | null
+  scheduled_for: string | null
 }
 
 export interface Relacionamento {
@@ -148,6 +149,7 @@ export interface ContactCard {
   caso_estado: string | null
   caso_data_obito: string | null
   tipo_parentesco: string | null
+  scheduled_for: string | null
 }
 
 export interface ContactDetails {

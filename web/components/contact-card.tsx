@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Phone, User, MapPin } from 'lucide-react'
+import { Phone, User, MapPin, CalendarClock, AlertCircle } from 'lucide-react'
 import type { ContactCard as ContactCardType } from '@/lib/types'
 import { formatPhone, formatCPF } from '@/lib/utils'
 import { STAGE_CONFIG, type PipelineStage } from '@/lib/supabase'
@@ -19,9 +19,38 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
     'New': 'new',
     'Attempted': 'attempted',
     'In Progress': 'inProgress',
+    'Scheduled': 'scheduled',
     'Won': 'won',
     'Lost': 'lost'
   }[contact.status] || 'default'
+
+  // Calculate remaining days for scheduled contacts
+  const getScheduledInfo = () => {
+    if (contact.status !== 'Scheduled' || !contact.scheduled_for) return null
+    
+    // Parse the date as local date (YYYY-MM-DD) to avoid timezone issues
+    const dateStr = contact.scheduled_for.split('T')[0]
+    const [year, month, day] = dateStr.split('-').map(Number)
+    const scheduledDate = new Date(year, month - 1, day)
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const diffTime = scheduledDate.getTime() - today.getTime()
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays === 0) {
+      return { text: 'Contatar hoje', isOverdue: false, isToday: true }
+    } else if (diffDays === 1) {
+      return { text: 'Contatar amanhã', isOverdue: false, isToday: false }
+    } else if (diffDays > 1) {
+      return { text: `Contatar em ${diffDays} dias`, isOverdue: false, isToday: false }
+    } else {
+      return { text: `Atrasado ${Math.abs(diffDays)} dia${Math.abs(diffDays) > 1 ? 's' : ''}`, isOverdue: true, isToday: false }
+    }
+  }
+  
+  const scheduledInfo = getScheduledInfo()
 
   return (
     <Card 
@@ -80,6 +109,24 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
             </p>
           )}
         </div>
+
+        {/* Scheduled indicator */}
+        {scheduledInfo && (
+          <div className={`mt-3 pt-3 border-t flex items-center gap-2 text-sm ${
+            scheduledInfo.isOverdue 
+              ? 'text-red-600' 
+              : scheduledInfo.isToday 
+                ? 'text-orange-600' 
+                : 'text-purple-600'
+          }`}>
+            {scheduledInfo.isOverdue ? (
+              <AlertCircle className="h-4 w-4 shrink-0" />
+            ) : (
+              <CalendarClock className="h-4 w-4 shrink-0" />
+            )}
+            <span className="font-medium">{scheduledInfo.text}</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

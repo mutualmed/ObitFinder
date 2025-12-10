@@ -7,9 +7,11 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { 
   Phone, User, MapPin, Calendar, FileText, Upload, 
-  Trophy, XCircle, Clock, CheckCircle, Users, AlertTriangle
+  Trophy, XCircle, Clock, CheckCircle, Users, AlertTriangle, CalendarClock
 } from 'lucide-react'
 import { supabase, PIPELINE_STAGES, type PipelineStage } from '@/lib/supabase'
 import { formatPhone, formatCPF, formatDate } from '@/lib/utils'
@@ -27,6 +29,9 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
   const [loading, setLoading] = useState(false)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [scheduledFor, setScheduledFor] = useState('')
+  const [originalScheduledFor, setOriginalScheduledFor] = useState('')
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null)
 
   useEffect(() => {
     if (contactId && isOpen) {
@@ -52,6 +57,10 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
       }
 
       setNotes(contact.notes || '')
+      const schedDate = contact.scheduled_for ? contact.scheduled_for.split('T')[0] : ''
+      setScheduledFor(schedDate)
+      setOriginalScheduledFor(schedDate)
+      setPendingStatus(null)
 
       // Fetch related caso via relacionamentos
       const { data: relData } = await supabase
@@ -96,18 +105,64 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
     }
   }
 
-  const updateStatus = async (newStatus: string) => {
+  const handleStatusChange = (newStatus: string) => {
+    if (newStatus === 'Scheduled') {
+      setPendingStatus(newStatus)
+    } else {
+      setPendingStatus(null)
+      updateStatus(newStatus, null)
+    }
+  }
+
+  const confirmScheduled = () => {
+    if (!scheduledFor) {
+      alert('Por favor, selecione uma data para o agendamento.')
+      return
+    }
+    updateStatus('Scheduled', scheduledFor)
+    setPendingStatus(null)
+  }
+
+  const updateScheduledDate = async () => {
+    if (!contactId || !scheduledFor) return
+    setSaving(true)
+
+    try {
+      await supabase
+        .from('contatos')
+        .update({ scheduled_for: scheduledFor })
+        .eq('id', contactId)
+
+      setOriginalScheduledFor(scheduledFor)
+      onUpdate()
+      fetchContactDetails()
+    } catch (err) {
+      console.error('Error updating scheduled date:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const updateStatus = async (newStatus: string, scheduleDate: string | null) => {
     if (!contactId || !details) return
     setSaving(true)
 
     try {
       // Update the contact status
+      const updateData: { status: string; status_updated_at: string; scheduled_for?: string | null } = { 
+        status: newStatus, 
+        status_updated_at: new Date().toISOString() 
+      }
+      
+      if (newStatus === 'Scheduled' && scheduleDate) {
+        updateData.scheduled_for = scheduleDate
+      } else if (newStatus !== 'Scheduled') {
+        updateData.scheduled_for = null
+      }
+      
       await supabase
         .from('contatos')
-        .update({ 
-          status: newStatus, 
-          status_updated_at: new Date().toISOString() 
-        })
+        .update(updateData)
         .eq('id', contactId)
 
       // If Won, trigger the One-Win-Close-All logic
@@ -194,6 +249,7 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
     'New': 'new',
     'Attempted': 'attempted',
     'In Progress': 'inProgress',
+    'Scheduled': 'scheduled',
     'Won': 'won',
     'Lost': 'lost'
   }[currentStatus] || 'default'
@@ -227,7 +283,7 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Select value={currentStatus} onValueChange={updateStatus} disabled={saving}>
+                  <Select value={pendingStatus || currentStatus} onValueChange={handleStatusChange} disabled={saving}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -240,12 +296,50 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
                     </SelectContent>
                   </Select>
 
+                  {/* Date picker for Scheduled status */}
+                  {(pendingStatus === 'Scheduled' || currentStatus === 'Scheduled') && (
+                    <div className="space-y-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <Label className="flex items-center gap-2 text-purple-700">
+                        <CalendarClock className="h-4 w-4" />
+                        Data para contato
+                      </Label>
+                      <Input
+                        type="date"
+                        value={scheduledFor}
+                        onChange={(e) => setScheduledFor(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        className="bg-white"
+                      />
+                      {pendingStatus === 'Scheduled' ? (
+                        <Button 
+                          size="sm" 
+                          onClick={confirmScheduled}
+                          disabled={saving || !scheduledFor}
+                          className="w-full bg-purple-600 hover:bg-purple-700"
+                        >
+                          <CalendarClock className="h-4 w-4 mr-1" />
+                          Confirmar Agendamento
+                        </Button>
+                      ) : currentStatus === 'Scheduled' && scheduledFor !== originalScheduledFor && (
+                        <Button 
+                          size="sm" 
+                          onClick={() => updateScheduledDate()}
+                          disabled={saving || !scheduledFor}
+                          className="w-full bg-purple-600 hover:bg-purple-700"
+                        >
+                          <CalendarClock className="h-4 w-4 mr-1" />
+                          Atualizar Data
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <Button 
                       variant="success" 
                       size="sm" 
                       className="flex-1"
-                      onClick={() => updateStatus('Won')}
+                      onClick={() => updateStatus('Won', null)}
                       disabled={saving || currentStatus === 'Won'}
                     >
                       <Trophy className="h-4 w-4 mr-1" />
@@ -255,7 +349,7 @@ export function ContactDetailModal({ contactId, isOpen, onClose, onUpdate }: Con
                       variant="destructive" 
                       size="sm" 
                       className="flex-1"
-                      onClick={() => updateStatus('Lost')}
+                      onClick={() => updateStatus('Lost', null)}
                       disabled={saving || currentStatus === 'Lost'}
                     >
                       <XCircle className="h-4 w-4 mr-1" />
