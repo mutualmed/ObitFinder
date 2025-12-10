@@ -1,10 +1,13 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react'
 import { Session, User, AuthChangeEvent } from '@supabase/supabase-js'
 import { Profile } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+
+// Session will be considered stale after 30 minutes of inactivity
+const SESSION_STALE_TIME = 30 * 60 * 1000 // 30 minutes
 
 type AuthContextType = {
   session: Session | null
@@ -22,9 +25,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
+  const lastActivityRef = useRef<number>(Date.now())
+  const isRefreshingRef = useRef<boolean>(false)
   
   // Create supabase client once
   const supabase = useMemo(() => createClient(), [])
+  
+  // Update last activity timestamp on user interaction
+  useEffect(() => {
+    const updateActivity = () => {
+      lastActivityRef.current = Date.now()
+    }
+    
+    window.addEventListener('click', updateActivity)
+    window.addEventListener('keydown', updateActivity)
+    window.addEventListener('scroll', updateActivity)
+    window.addEventListener('touchstart', updateActivity)
+    
+    return () => {
+      window.removeEventListener('click', updateActivity)
+      window.removeEventListener('keydown', updateActivity)
+      window.removeEventListener('scroll', updateActivity)
+      window.removeEventListener('touchstart', updateActivity)
+    }
+  }, [])
+  
+  // Handle visibility change - refresh session when user returns
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && !isRefreshingRef.current) {
+        const timeSinceActivity = Date.now() - lastActivityRef.current
+        
+        // If user has been away for more than the stale time, refresh session
+        if (timeSinceActivity > SESSION_STALE_TIME) {
+          console.log('Session may be stale, refreshing...')
+          isRefreshingRef.current = true
+          
+          try {
+            const { data, error } = await supabase.auth.refreshSession()
+            
+            if (error || !data.session) {
+              console.log('Session refresh failed, redirecting to login')
+              setSession(null)
+              setUser(null)
+              setProfile(null)
+              router.push('/login')
+              return
+            }
+            
+            console.log('Session refreshed successfully')
+            setSession(data.session)
+            setUser(data.session.user)
+            lastActivityRef.current = Date.now()
+          } catch (err) {
+            console.error('Error refreshing session:', err)
+            router.push('/login')
+          } finally {
+            isRefreshingRef.current = false
+          }
+        }
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [supabase, router])
 
   const fetchProfile = async (userId: string) => {
     try {
