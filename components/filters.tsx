@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
-import { Search, X, Filter, Calendar } from 'lucide-react'
-import type { Filters } from '@/lib/types'
-import { PIPELINE_STAGES } from '@/lib/supabase'
+import { Search, X, Filter, Calendar, Megaphone } from 'lucide-react'
+import type { Filters, Campaign } from '@/lib/types'
+import { PIPELINE_STAGES, supabase } from '@/lib/supabase'
 
 interface FiltersProps {
   filters: Filters
@@ -18,6 +18,22 @@ interface FiltersProps {
 
 export function FiltersPanel({ filters, onFiltersChange, estados, cidades }: FiltersProps) {
   const [isExpanded, setIsExpanded] = useState(true)
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+
+  useEffect(() => {
+    const fetchCampaigns = async () => {
+      const { data } = await (supabase
+        .from('campaigns') as any)
+        .select('*')
+        .eq('status', 'active')
+        .order('name')
+      
+      if (data) {
+        setCampaigns(data as Campaign[])
+      }
+    }
+    fetchCampaigns()
+  }, [])
 
   const updateFilter = (key: keyof Filters, value: string) => {
     onFiltersChange({ ...filters, [key]: value })  }
@@ -32,7 +48,8 @@ export function FiltersPanel({ filters, onFiltersChange, estados, cidades }: Fil
       estado: '',
       dateFrom: '',
       dateTo: '',
-      status: ''
+      status: '',
+      campaignId: ''
     })
   }
 
@@ -73,7 +90,7 @@ export function FiltersPanel({ filters, onFiltersChange, estados, cidades }: Fil
             {/* Seção Parente */}
             <div>
               <h4 className="text-sm font-semibold text-gray-900 mb-3 border-b pb-1">Parente</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Contact Name */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-600">Nome do Parente</label>
@@ -113,6 +130,27 @@ export function FiltersPanel({ filters, onFiltersChange, estados, cidades }: Fil
                       {PIPELINE_STAGES.map((stage) => (
                         <SelectItem key={stage} value={stage}>
                           {stage}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Campaign Filter */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-600">Campanha</label>
+                  <Select 
+                    value={filters.campaignId || "ALL"} 
+                    onValueChange={(value) => updateFilter('campaignId', value === "ALL" ? "" : value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas as campanhas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Todas as campanhas</SelectItem>
+                      {campaigns.map((campaign) => (
+                        <SelectItem key={campaign.id} value={campaign.id}>
+                          {campaign.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

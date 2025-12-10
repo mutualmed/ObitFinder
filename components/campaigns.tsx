@@ -97,7 +97,8 @@ export function Campaigns() {
     estado: '',
     dateFrom: '',
     dateTo: '',
-    status: ''
+    status: '',
+    campaignId: ''
   })
   const [isLeadFiltersExpanded, setIsLeadFiltersExpanded] = useState(true)
   
@@ -317,7 +318,8 @@ export function Campaigns() {
       estado: '',
       dateFrom: '',
       dateTo: '',
-      status: ''
+      status: '',
+      campaignId: ''
     })
   }
 

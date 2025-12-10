@@ -187,5 +187,6 @@ export interface Filters {
   dateFrom: string
   dateTo: string
   status: string
+  campaignId: string
 }
 

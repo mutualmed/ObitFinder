@@ -1,6 +1,18 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Helper to clear all Supabase auth cookies
+function clearAuthCookies(response: NextResponse, request: NextRequest) {
+  // Get all cookies and delete any that look like Supabase auth cookies
+  const allCookies = request.cookies.getAll()
+  for (const cookie of allCookies) {
+    if (cookie.name.startsWith('sb-') || cookie.name.includes('supabase')) {
+      response.cookies.delete(cookie.name)
+    }
+  }
+  return response
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -34,27 +46,39 @@ export async function middleware(request: NextRequest) {
   )
 
   let user = null
+  let authError = false
+  
   try {
-    const { data, error } = await supabase.auth.getUser()
-    if (!error) {
+    // Add timeout to prevent hanging on stale tokens
+    const authPromise = supabase.auth.getUser()
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Auth timeout')), 5000)
+    )
+    
+    const { data, error } = await Promise.race([authPromise, timeoutPromise]) as any
+    
+    if (!error && data?.user) {
       user = data.user
+    } else if (error) {
+      console.log('Auth error:', error.message)
+      authError = true
     }
-  } catch (err) {
-    // Auth failed, user will be null
-    console.error('Middleware auth error:', err)
+  } catch (err: any) {
+    console.log('Middleware auth error:', err.message)
+    authError = true
   }
 
   // Protect all routes except /login and static assets
   if (
     !user &&
     !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/auth') && // Allow auth callback routes
+    !request.nextUrl.pathname.startsWith('/auth') &&
     !request.nextUrl.pathname.startsWith('/_next') &&
     !request.nextUrl.pathname.includes('.')
   ) {
-    // Clear any stale auth cookies
+    // Clear ALL stale auth cookies and redirect to login
     const redirectResponse = NextResponse.redirect(new URL('/login', request.url))
-    redirectResponse.cookies.delete('sb-txeijevdnhmqeffgyjcg-auth-token')
+    clearAuthCookies(redirectResponse, request)
     return redirectResponse
   }
 

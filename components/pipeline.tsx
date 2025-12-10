@@ -30,7 +30,8 @@ export function Pipeline() {
     estado: '',
     dateFrom: '',
     dateTo: '',
-    status: ''
+    status: '',
+    campaignId: ''
   })
 
   const [estados, setEstados] = useState<string[]>([])
@@ -71,18 +72,22 @@ export function Pipeline() {
       // Check if we have any case-related filters
       const hasCaseFilters = filters.caseName || filters.caseCpf || filters.cidade || filters.estado || filters.dateFrom || filters.dateTo
       const caseModifier = hasCaseFilters ? '!inner' : ''
+      const campaignJoin = filters.campaignId ? ', campaign_leads!inner(campaign_id)' : ''
 
       let query = (supabase
         .from('relacionamentos') as any)
         .select(`
           id, tipo_parentesco, caso_id,
-          contatos!inner(id, nome, cpf, telefone_1, telefone_2, telefone_3, telefone_4, status, notes, scheduled_for),
+          contatos!inner(id, nome, cpf, telefone_1, telefone_2, telefone_3, telefone_4, status, notes, scheduled_for${campaignJoin}),
           casos${caseModifier}(id, nome, cpf, cidade, estado, data_obito)
         `)
         .eq('contatos.status', stage)
         .limit(limit)
 
       // Apply filters
+      if (filters.campaignId) {
+        query = query.eq('contatos.campaign_leads.campaign_id', filters.campaignId)
+      }
       if (filters.contactName) {
         query = query.ilike('contatos.nome', `%${filters.contactName}%`)
       }
@@ -147,10 +152,15 @@ export function Pipeline() {
       setCardsByStage(prev => ({ ...prev, [stage]: cards }))
 
       // Get total count for this stage
-      const { count } = await (supabase
-        .from('contatos') as any)
-        .select('*', { count: 'exact', head: true })
+      let countQuery = (supabase.from('contatos') as any)
+        .select(filters.campaignId ? '*, campaign_leads!inner(campaign_id)' : '*', { count: 'exact', head: true })
         .eq('status', stage)
+
+      if (filters.campaignId) {
+        countQuery = countQuery.eq('campaign_leads.campaign_id', filters.campaignId)
+      }
+
+      const { count } = await countQuery
 
       setCountsByStage(prev => ({ ...prev, [stage]: count || 0 }))
 
